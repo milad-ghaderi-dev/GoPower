@@ -4,15 +4,17 @@ import (
 	"GoPower/handlers"
 	"GoPower/repository"
 	"GoPower/service"
+	"GoPower/ws"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(srv *service.GridService, stRepo repository.StationRepository, csRepo repository.ConsumerRepository) *gin.Engine {
+func SetupRouter(srv *service.GridService, stRepo repository.StationRepository, csRepo repository.ConsumerRepository, hub *ws.WebSocketHub) *gin.Engine {
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "OK"}) })
+	r.GET("/ws", handlers.ServeWS(hub))
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
