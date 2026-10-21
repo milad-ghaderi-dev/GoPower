@@ -4,7 +4,12 @@ import (
 	"GoPower/db"
 	"GoPower/models"
 	"GoPower/repository"
+	"GoPower/server"
 	"GoPower/service"
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -119,5 +124,44 @@ func TestSample_RecordGenerationAndDispatch(t *testing.T) {
 
 	if summary.NetBalanceMW != 20.0 { // (80 - 30) generation - 30 demand = 50 - 30 = 20
 		t.Errorf("net balance mismatch: expected 20.0, got %f", summary.NetBalanceMW)
+	}
+}
+
+func TestSample_CreateStationAndHealthEndpoint(t *testing.T) {
+	database, err := db.InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("failed to initialize test database: %v", err)
+	}
+
+	stRepo := repository.NewStationRepository(database)
+	csRepo := repository.NewConsumerRepository(database)
+	gridService := service.NewGridService(database, stRepo, csRepo)
+	router := server.SetupRouter(gridService, stRepo, csRepo)
+
+	// Test health check endpoint GET /health
+	reqHealth, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	wHealth := httptest.NewRecorder()
+	router.ServeHTTP(wHealth, reqHealth)
+
+	if wHealth.Code != http.StatusOK {
+		t.Errorf("health endpoint status mismatch: expected 200, got %d", wHealth.Code)
+	}
+
+	// Test create station POST /api/v1/stations
+	body := map[string]any{
+		"id":          "st-api-01",
+		"name":        "Kavir Solar Farm",
+		"type":        "SOLAR",
+		"capacity_mw": 150.0,
+		"is_active":   true,
+	}
+	bodyBytes, _ := json.Marshal(body)
+	reqStation, _ := http.NewRequest(http.MethodPost, "/api/v1/stations", bytes.NewBuffer(bodyBytes))
+	reqStation.Header.Set("Content-Type", "application/json")
+	wStation := httptest.NewRecorder()
+	router.ServeHTTP(wStation, reqStation)
+
+	if wStation.Code != http.StatusCreated {
+		t.Errorf("create station status mismatch: expected 201, got %d", wStation.Code)
 	}
 }
