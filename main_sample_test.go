@@ -4,6 +4,7 @@ import (
 	"GoPower/db"
 	"GoPower/models"
 	"GoPower/repository"
+	"GoPower/service"
 	"testing"
 )
 
@@ -64,5 +65,59 @@ func TestSample_CreateAndGetConsumer(t *testing.T) {
 
 	if fetched.ContractedMW != 45.0 {
 		t.Errorf("contracted MW mismatch: expected 45.0, got %f", fetched.ContractedMW)
+	}
+}
+
+func TestSample_RecordGenerationAndDispatch(t *testing.T) {
+	database, err := db.InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("failed to initialize test database: %v", err)
+	}
+
+	stRepo := repository.NewStationRepository(database)
+	csRepo := repository.NewConsumerRepository(database)
+	gridService := service.NewGridService(database, stRepo, csRepo)
+
+	solar := &models.PowerStation{
+		ID:         "st-sol-01",
+		Name:       "Shiraz Solar Farm",
+		Type:       models.StationSolar,
+		CapacityMW: 100.0,
+		IsActive:   true,
+	}
+	_ = stRepo.Create(solar)
+
+	consumer := &models.ConsumerMeter{
+		ID:           "cm-ind-01",
+		Name:         "Aluminum Smelter",
+		Type:         models.ConsumerIndustrial,
+		ContractedMW: 60.0,
+		IsConnected:  true,
+	}
+	_ = csRepo.Create(consumer)
+
+	// Record generation output
+	if err := gridService.RecordGeneration("st-sol-01", 80.0); err != nil {
+		t.Fatalf("failed to record generation: %v", err)
+	}
+
+	// Dispatch energy load
+	record, err := gridService.DispatchEnergy("st-sol-01", "cm-ind-01", 30.0)
+	if err != nil {
+		t.Fatalf("failed to dispatch energy: %v", err)
+	}
+
+	if record.AmountMW != 30.0 {
+		t.Errorf("dispatched amount mismatch: expected 30.0, got %f", record.AmountMW)
+	}
+
+	// Fetch grid summary
+	summary, err := gridService.GetGridSummary()
+	if err != nil {
+		t.Fatalf("failed to get grid summary: %v", err)
+	}
+
+	if summary.NetBalanceMW != 20.0 { // (80 - 30) generation - 30 demand = 50 - 30 = 20
+		t.Errorf("net balance mismatch: expected 20.0, got %f", summary.NetBalanceMW)
 	}
 }
