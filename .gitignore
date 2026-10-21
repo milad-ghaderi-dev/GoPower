@@ -1,0 +1,26 @@
+# Binaries and executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test binaries and coverage
+*.test
+*.out
+
+# SQLite databases & temp files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment & IDE files
+.env
+*.local
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
